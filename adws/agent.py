@@ -25,7 +25,7 @@ def check_claude_installed() -> Optional[str]:
     """Check if Claude Code CLI is installed. Return error message if not."""
     try:
         result = subprocess.run(
-            [CLAUDE_PATH, "--version"], capture_output=True, text=True
+            [CLAUDE_PATH, "--version"], capture_output=True, text=True, encoding='utf-8'
         )
         if result.returncode != 0:
             return f"Error: Claude Code CLI is not installed. Expected at: {CLAUDE_PATH}"
@@ -41,7 +41,7 @@ def parse_jsonl_output(output_file: str) -> Tuple[List[Dict[str, Any]], Optional
         Tuple of (all_messages, result_message) where result_message is None if not found
     """
     try:
-        with open(output_file, "r") as f:
+        with open(output_file, "r", encoding='utf-8') as f:
             # Read all lines and parse each as JSON
             messages = [json.loads(line) for line in f if line.strip()]
             
@@ -74,7 +74,7 @@ def convert_jsonl_to_json(jsonl_file: str) -> str:
     messages, _ = parse_jsonl_output(jsonl_file)
     
     # Write as JSON array
-    with open(json_file, 'w') as f:
+    with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(messages, f, indent=2)
     
     print(f"Created JSON file: {json_file}")
@@ -82,51 +82,50 @@ def convert_jsonl_to_json(jsonl_file: str) -> str:
 
 
 def get_claude_env() -> Dict[str, str]:
-    """Get only the required environment variables for Claude Code execution.
-    
-    Returns a dictionary containing only the necessary environment variables
-    based on .env.sample configuration.
-    
+    """Get environment variables for Claude Code execution.
+
+    Starts with the full parent environment to preserve Claude Code's OAuth
+    authentication, then adds/overrides specific variables from .env.
+
     Subprocess env behavior:
     - env=None → Inherits parent's environment (default)
     - env={} → Empty environment (no variables)
     - env=custom_dict → Only uses specified variables
-    
-    So this will work with gh authentication:
-    # These are equivalent:
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    result = subprocess.run(cmd, capture_output=True, text=True, env=None)
-    
-    But this will NOT work (no PATH, no auth):
-    result = subprocess.run(cmd, capture_output=True, text=True, env={})
+
+    We start with os.environ.copy() to preserve all authentication tokens
+    and system variables, then add our specific overrides.
     """
-    required_env_vars = {
-        # Anthropic Configuration (required)
-        "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-        
-        # Claude Code Configuration
-        "CLAUDE_CODE_PATH": os.getenv("CLAUDE_CODE_PATH", "claude"),
-        "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": os.getenv("CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR", "true"),
-        
-        # Agent Cloud Sandbox Environment (optional)
-        "E2B_API_KEY": os.getenv("E2B_API_KEY"),
-        
-        # Basic environment variables Claude Code might need
-        "HOME": os.getenv("HOME"),
-        "USER": os.getenv("USER"),
-        "PATH": os.getenv("PATH"),
-        "SHELL": os.getenv("SHELL"),
-        "TERM": os.getenv("TERM"),
-    }
-    
+    # Start with full parent environment to preserve Claude Code auth tokens
+    env = os.environ.copy()
+
+    # Handle ANTHROPIC_API_KEY - remove if it's the placeholder value
+    # Claude Code has its own OAuth auth that works without this env var
+    anthropic_key = env.get("ANTHROPIC_API_KEY")
+    if anthropic_key == "claude-code-subscription":
+        # Remove the placeholder so Claude Code uses its own OAuth auth
+        del env["ANTHROPIC_API_KEY"]
+
+    # Claude Code Configuration
+    claude_path = os.getenv("CLAUDE_CODE_PATH")
+    if claude_path:
+        env["CLAUDE_CODE_PATH"] = claude_path
+
+    maintain_dir = os.getenv("CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR")
+    if maintain_dir:
+        env["CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] = maintain_dir
+
+    # Agent Cloud Sandbox Environment (optional)
+    e2b_key = os.getenv("E2B_API_KEY")
+    if e2b_key:
+        env["E2B_API_KEY"] = e2b_key
+
     # Only add GitHub tokens if GITHUB_PAT exists
     github_pat = os.getenv("GITHUB_PAT")
     if github_pat:
-        required_env_vars["GITHUB_PAT"] = github_pat
-        required_env_vars["GH_TOKEN"] = github_pat  # Claude Code uses GH_TOKEN
-    
-    # Filter out None values
-    return {k: v for k, v in required_env_vars.items() if v is not None}
+        env["GITHUB_PAT"] = github_pat
+        env["GH_TOKEN"] = github_pat  # Claude Code uses GH_TOKEN
+
+    return env
 
 
 def save_prompt(prompt: str, adw_id: str, agent_name: str = "ops") -> None:
@@ -147,7 +146,7 @@ def save_prompt(prompt: str, adw_id: str, agent_name: str = "ops") -> None:
     
     # Save prompt to file
     prompt_file = os.path.join(prompt_dir, f"{command_name}.txt")
-    with open(prompt_file, "w") as f:
+    with open(prompt_file, "w", encoding='utf-8') as f:
         f.write(prompt)
     
     print(f"Saved prompt to: {prompt_file}")
@@ -170,7 +169,8 @@ def prompt_claude_code(request: AgentPromptRequest) -> AgentPromptResponse:
         os.makedirs(output_dir, exist_ok=True)
 
     # Build command - always use stream-json format and verbose
-    cmd = [CLAUDE_PATH, "-p", request.prompt]
+    # Use stdin for prompt to avoid Windows command-line parsing issues with special chars
+    cmd = [CLAUDE_PATH, "-p", "-"]  # "-" means read prompt from stdin
     cmd.extend(["--model", request.model])
     cmd.extend(["--output-format", "stream-json"])
     cmd.append("--verbose")
@@ -184,9 +184,11 @@ def prompt_claude_code(request: AgentPromptRequest) -> AgentPromptResponse:
 
     try:
         # Execute Claude Code and pipe output to file
-        with open(request.output_file, "w") as f:
+        # Pass prompt via stdin to avoid Windows command-line parsing issues
+        with open(request.output_file, "w", encoding='utf-8') as f:
             result = subprocess.run(
-                cmd, stdout=f, stderr=subprocess.PIPE, text=True, env=env
+                cmd, input=request.prompt, stdout=f, stderr=subprocess.PIPE,
+                text=True, encoding='utf-8', env=env
             )
 
         if result.returncode == 0:
@@ -213,7 +215,7 @@ def prompt_claude_code(request: AgentPromptRequest) -> AgentPromptResponse:
                 )
             else:
                 # No result message found, return raw output
-                with open(request.output_file, "r") as f:
+                with open(request.output_file, "r", encoding='utf-8') as f:
                     raw_output = f.read()
                 return AgentPromptResponse(
                     output=raw_output, 

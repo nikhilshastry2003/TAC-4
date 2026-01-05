@@ -41,12 +41,22 @@ def get_github_env() -> Optional[dict]:
     if not github_pat:
         return None
     
-    # Only create minimal env with GitHub token
+    # Create env with GitHub token and required system variables
     env = {
         "GH_TOKEN": github_pat,
         "PATH": os.environ.get("PATH", ""),
+        # Windows-specific environment variables (required for subprocess)
+        "SystemRoot": os.environ.get("SystemRoot", ""),
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        "USERPROFILE": os.environ.get("USERPROFILE", ""),
+        "APPDATA": os.environ.get("APPDATA", ""),
+        "LOCALAPPDATA": os.environ.get("LOCALAPPDATA", ""),
+        "TEMP": os.environ.get("TEMP", ""),
+        "TMP": os.environ.get("TMP", ""),
+        "COMSPEC": os.environ.get("COMSPEC", ""),
     }
-    return env
+    # Filter out empty values
+    return {k: v for k, v in env.items() if v}
 
 
 def get_repo_url() -> str:
@@ -56,6 +66,7 @@ def get_repo_url() -> str:
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
             check=True,
         )
         return result.stdout.strip()
@@ -91,7 +102,7 @@ def fetch_issue(issue_number: str, repo_path: str) -> GitHubIssue:
     env = get_github_env()
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env)
 
         if result.returncode == 0:
             # Parse JSON response into Pydantic model
@@ -142,7 +153,7 @@ def make_issue_comment(issue_id: str, comment: str) -> None:
     env = get_github_env()
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env)
 
         if result.returncode == 0:
             print(f"Successfully posted comment to issue #{issue_id}")
@@ -176,7 +187,7 @@ def mark_issue_in_progress(issue_id: str) -> None:
     env = get_github_env()
 
     # Try to add label (may fail if label doesn't exist)
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env)
     if result.returncode != 0:
         print(f"Note: Could not add 'in_progress' label: {result.stderr}")
 
@@ -194,7 +205,7 @@ def mark_issue_in_progress(issue_id: str) -> None:
         "--add-assignee",
         "@me",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', env=env)
     if result.returncode == 0:
         print(f"Assigned issue #{issue_id} to self")
 
@@ -221,7 +232,7 @@ def fetch_open_issues(repo_path: str) -> List[GitHubIssueListItem]:
 
         # DEBUG level - not printing command
         result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True, env=env
+            cmd, capture_output=True, text=True, encoding='utf-8', check=True, env=env
         )
 
         issues_data = json.loads(result.stdout)
@@ -255,7 +266,7 @@ def fetch_issue_comments(repo_path: str, issue_number: int) -> List[Dict]:
         env = get_github_env()
 
         result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True, env=env
+            cmd, capture_output=True, text=True, encoding='utf-8', check=True, env=env
         )
         data = json.loads(result.stdout)
         comments = data.get("comments", [])

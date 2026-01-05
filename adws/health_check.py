@@ -29,9 +29,15 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pathlib import Path
 import argparse
+import io
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
+
+# Fix Windows console encoding for emoji support
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Import git repo functions from github module
 from github import get_repo_url, extract_repo_path, make_issue_comment
@@ -62,7 +68,7 @@ class HealthCheckResult(BaseModel):
 def check_env_vars() -> CheckResult:
     """Check required environment variables."""
     required_vars = {
-        "ANTHROPIC_API_KEY": "Anthropic API Key for Claude Code",
+        "ANTHROPIC_API_KEY": "Anthropic API Key for Claude Code (or 'claude-code-subscription')",
         "CLAUDE_CODE_PATH": "Path to Claude Code CLI (defaults to 'claude')",
     }
 
@@ -77,7 +83,8 @@ def check_env_vars() -> CheckResult:
 
     # Check required vars
     for var, desc in required_vars.items():
-        if not os.getenv(var):
+        value = os.getenv(var)
+        if not value:
             if var == "CLAUDE_CODE_PATH":
                 # This has a default, so not critical
                 continue
@@ -90,6 +97,10 @@ def check_env_vars() -> CheckResult:
 
     success = len(missing_required) == 0
 
+    # Check if using Claude Code subscription
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    using_claude_code_subscription = anthropic_key.lower() == "claude-code-subscription"
+
     return CheckResult(
         success=success,
         error="Missing required environment variables" if not success else None,
@@ -97,6 +108,7 @@ def check_env_vars() -> CheckResult:
             "missing_required": missing_required,
             "missing_optional": missing_optional,
             "claude_code_path": os.getenv("CLAUDE_CODE_PATH", "claude"),
+            "using_claude_code_subscription": using_claude_code_subscription,
         },
     )
 
@@ -291,14 +303,28 @@ def run_health_check() -> HealthCheckResult:
         if gh_check.error:
             result.errors.append(gh_check.error)
 
-    # Check Claude Code - only if we have the API key
-    if os.getenv("ANTHROPIC_API_KEY"):
-        claude_check = check_claude_code()
-        result.checks["claude_code"] = claude_check
-        if not claude_check.success:
-            result.success = False
-            if claude_check.error:
-                result.errors.append(claude_check.error)
+    # Check Claude Code - only if we have the API key or using subscription
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    using_subscription = anthropic_key.lower() == "claude-code-subscription"
+
+    if anthropic_key:
+        if using_subscription:
+            # Skip the Claude Code test when using subscription - it uses Claude Code's built-in auth
+            result.checks["claude_code"] = CheckResult(
+                success=True,
+                details={
+                    "skipped": True,
+                    "reason": "Using Claude Code subscription (built-in authentication)",
+                    "using_claude_code_subscription": True,
+                },
+            )
+        else:
+            claude_check = check_claude_code()
+            result.checks["claude_code"] = claude_check
+            if not claude_check.success:
+                result.success = False
+                if claude_check.error:
+                    result.errors.append(claude_check.error)
     else:
         result.checks["claude_code"] = CheckResult(
             success=False,
