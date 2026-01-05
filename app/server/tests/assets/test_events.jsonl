@@ -1,0 +1,4 @@
+{"event": "purchase", "user": {"id": 1, "name": "Alice", "email": "alice@example.com"}, "items": ["book", "pen"], "total": 25.50, "timestamp": "2024-01-01T10:00:00"}
+{"event": "login", "user": {"id": 2, "name": "Bob"}, "timestamp": "2024-01-01T10:15:00"}
+{"event": "purchase", "user": {"id": 3, "name": "Charlie", "email": "charlie@example.com"}, "items": ["notebook", "pencil", "eraser"], "total": 15.75, "timestamp": "2024-01-01T10:30:00"}
+{"event": "logout", "user": {"id": 1, "name": "Alice"}, "timestamp": "2024-01-01T11:00:00", "session_duration": 3600}

@@ -5,7 +5,7 @@ A web application that converts natural language queries to SQL using AI, built 
 ## Features
 
 - 🗣️ Natural language to SQL conversion using OpenAI or Anthropic
-- 📁 Drag-and-drop file upload (.csv and .json)
+- 📁 Drag-and-drop file upload (.csv, .json, and .jsonl)
 - 📊 Interactive table results display
 - 🔒 SQL injection protection
 - ⚡ Fast development with Vite and uv
@@ -83,12 +83,32 @@ npm run dev
 
 1. **Upload Data**: Click "Upload Data" to open the modal
    - Use sample data buttons for quick testing
-   - Or drag and drop your own .csv or .json files
+   - Or drag and drop your own .csv, .json, or .jsonl files
    - Uploading a file with the same name will overwrite the existing table
 2. **Query Your Data**: Type a natural language query like "Show me all users who signed up last week"
    - Press `Cmd+Enter` (Mac) or `Ctrl+Enter` (Windows/Linux) to run the query
 3. **View Results**: See the generated SQL and results in a table format
 4. **Manage Tables**: Click the × button on any table to remove it
+
+### JSONL File Support
+
+JSONL (JSON Lines) files are fully supported with advanced features:
+
+- **Nested Object Flattening**: Nested objects are flattened using `__` delimiter
+  - Example: `{"user": {"name": "Alice"}}` becomes column `user__name`
+- **List Handling**: Lists are handled in two ways:
+  - Concatenated column: `["python", "javascript"]` becomes `"python||javascript"`
+  - Indexed columns: Creates `items_0`, `items_1`, etc. for individual access
+- **Field Discovery**: All fields across all records are discovered, even if they only appear in some records
+- **Error Resilience**: Malformed JSON lines are skipped with warnings
+
+Example JSONL file:
+```jsonl
+{"event": "purchase", "user": {"id": 1, "name": "Alice"}, "items": ["book", "pen"], "total": 25.50}
+{"event": "login", "user": {"id": 2, "name": "Bob"}, "timestamp": "2024-01-01"}
+```
+
+This creates a table with columns: `event`, `user__id`, `user__name`, `items`, `items_0`, `items_1`, `total`, `timestamp`
 
 ## Development
 
@@ -135,7 +155,7 @@ npm run preview            # Preview production build
 
 ## API Endpoints
 
-- `POST /api/upload` - Upload CSV/JSON file
+- `POST /api/upload` - Upload CSV/JSON/JSONL file
 - `POST /api/query` - Process natural language query
 - `GET /api/schema` - Get database schema
 - `POST /api/insights` - Generate column insights
@@ -192,7 +212,7 @@ uv run pytest tests/test_sql_injection.py -v
 ### Additional Security Features
 
 - CORS configured for local development only
-- File upload validation (CSV and JSON only)
+- File upload validation (CSV, JSON, and JSONL only)
 - Comprehensive error logging without exposing sensitive data
 - Database operations are isolated with proper connection handling
 
@@ -200,7 +220,7 @@ uv run pytest tests/test_sql_injection.py -v
 
 **Backend won't start:**
 - Check Python version: `python --version` (requires 3.12+)
-- Verify API keys are set: `echo $OPENAI_API_KEY`
+- Verify API keys are set: `echo $GEMINI_API_KEY` (Unix) or `echo %GEMINI_API_KEY%` (Windows)
 
 **Frontend errors:**
 - Clear node_modules: `rm -rf node_modules && npm install`

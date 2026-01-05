@@ -35,11 +35,12 @@ from typing import Tuple, Optional, Union
 from dotenv import load_dotenv
 from data_types import (
     AgentTemplateRequest,
+    AgentPromptRequest,
     GitHubIssue,
     AgentPromptResponse,
     IssueClassSlashCommand,
 )
-from agent import execute_template
+from agent import execute_template, prompt_claude_code
 from github import (
     extract_repo_path,
     fetch_issue,
@@ -116,19 +117,50 @@ def classify_issue(
 ) -> Tuple[Optional[IssueClassSlashCommand], Optional[str]]:
     """Classify GitHub issue and return appropriate slash command.
     Returns (command, error_message) tuple."""
-    issue_template_request = AgentTemplateRequest(
-        agent_name=AGENT_CLASSIFIER,
-        slash_command="/classify_issue",
-        args=[issue.model_dump_json(indent=2, by_alias=True)],
+
+    # Build direct prompt (not using skill system to avoid argument parsing issues)
+    issue_json = issue.model_dump_json(indent=2, by_alias=True)
+    classify_prompt = f"""# Github Issue Command Selection
+
+Based on the `Github Issue` below, follow the `Instructions` to select the appropriate command to execute based on the `Command Mapping`.
+
+## Instructions
+
+- Based on the details in the `Github Issue`, select the appropriate command to execute.
+- Respond exclusively with '/' followed by the command to execute.
+- Use the command mapping to help you decide which command to respond with.
+- Think hard about the command to execute.
+
+## Command Mapping
+
+- Respond with `/chore` if the issue is a chore.
+- Respond with `/bug` if the issue is a bug.
+- Respond with `/feature` if the issue is a feature.
+- Respond with `0` if the issue isn't any of the above.
+
+## Github Issue
+
+{issue_json}"""
+
+    # Create output directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    output_dir = os.path.join(project_root, "agents", adw_id, AGENT_CLASSIFIER)
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = os.path.join(output_dir, "raw_output.jsonl")
+
+    # Create direct prompt request (bypasses skill system)
+    prompt_request = AgentPromptRequest(
+        prompt=classify_prompt,
         adw_id=adw_id,
+        agent_name=AGENT_CLASSIFIER,
         model="sonnet",
+        dangerously_skip_permissions=True,
+        output_file=output_file,
     )
 
-    logger.debug(
-        f"issue_template_request: {issue_template_request.model_dump_json(indent=2, by_alias=True)}"
-    )
+    logger.debug(f"classify_prompt length: {len(classify_prompt)}")
 
-    issue_response = execute_template(issue_template_request)
+    issue_response = prompt_claude_code(prompt_request)
 
     logger.debug(
         f"issue_response: {issue_response.model_dump_json(indent=2, by_alias=True)}"
@@ -137,15 +169,18 @@ def classify_issue(
     if not issue_response.success:
         return None, issue_response.output
 
-    issue_command = issue_response.output.strip()
+    # Extract command from response (handle explanation + command format)
+    response_text = issue_response.output.strip()
 
-    if issue_command == "0":
-        return None, f"No command selected: {issue_response.output}"
+    # Look for /feature, /bug, /chore in the response
+    for cmd in ["/feature", "/bug", "/chore"]:
+        if cmd in response_text:
+            return cmd, None  # type: ignore
 
-    if issue_command not in ["/chore", "/bug", "/feature"]:
-        return None, f"Invalid command selected: {issue_response.output}"
+    if "0" in response_text and "/feature" not in response_text and "/bug" not in response_text and "/chore" not in response_text:
+        return None, f"No command selected: {response_text}"
 
-    return issue_command, None  # type: ignore
+    return None, f"Invalid command selected: {response_text}"
 
 
 def build_plan(
@@ -194,8 +229,8 @@ def get_plan_file(
     # Clean up the response - get just the file path
     file_path = response.output.strip()
 
-    # Validate it looks like a file path
-    if file_path and file_path != "0" and "/" in file_path:
+    # Validate it looks like a file path (support both Unix and Windows paths)
+    if file_path and file_path != "0" and ("/" in file_path or "\\" in file_path or os.path.sep in file_path):
         return file_path, None
     elif file_path == "0":
         return None, "No plan file found in output"

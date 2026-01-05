@@ -1,5 +1,6 @@
 """Utility functions for ADW system."""
 
+import io
 import logging
 import os
 import sys
@@ -36,13 +37,15 @@ def setup_logger(adw_id: str, trigger_type: str = "adw_plan_build") -> logging.L
     
     # Clear any existing handlers to avoid duplicates
     logger.handlers.clear()
-    
-    # File handler - captures everything
-    file_handler = logging.FileHandler(log_file, mode='a')
+
+    # File handler - captures everything (with UTF-8 encoding for Windows)
+    file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
-    
-    # Console handler - INFO and above
-    console_handler = logging.StreamHandler(sys.stdout)
+
+    # Console handler - INFO and above (with UTF-8 encoding for Windows)
+    # Wrap stdout with UTF-8 encoding and error handling for Windows console
+    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    console_handler = logging.StreamHandler(utf8_stdout)
     console_handler.setLevel(logging.INFO)
     
     # Format with timestamp for file
