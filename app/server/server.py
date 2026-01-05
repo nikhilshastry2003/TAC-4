@@ -213,7 +213,7 @@ async def health_check() -> HealthCheckResponse:
     """Health check endpoint with database status"""
     try:
         # Check database connection
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
@@ -249,8 +249,8 @@ async def delete_table(table_name: str):
         except SQLSecurityError as e:
             raise HTTPException(400, str(e))
         
-        conn = sqlite3.connect("db/database.db")
-        
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
+
         # Check if table exists using secure method
         if not check_table_exists(conn, table_name):
             conn.close()

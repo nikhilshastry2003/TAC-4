@@ -8,7 +8,7 @@ dependencies = [
     "fastapi==0.115.13",
     "uvicorn==0.34.3",
     "python-multipart==0.0.20",
-    "openai==1.88.0",
+    "google-generativeai>=0.8.0",
     "anthropic==0.54.0",
     "pandas==2.3.0",
     "python-dotenv==1.0.1",

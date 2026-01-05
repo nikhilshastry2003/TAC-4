@@ -12,7 +12,7 @@ interface FileUploadResponse {
 // Query Types
 interface QueryRequest {
   query: string;
-  llm_provider: "openai" | "anthropic";
+  llm_provider: "gemini" | "anthropic";
   table_name?: string;
 }
 

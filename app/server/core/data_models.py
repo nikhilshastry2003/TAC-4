@@ -14,10 +14,10 @@ class FileUploadResponse(BaseModel):
     sample_data: List[Dict[str, Any]]
     error: Optional[str] = None
 
-# Query Models  
+# Query Models
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Natural language query")
-    llm_provider: Literal["openai", "anthropic"] = "openai"
+    llm_provider: Literal["gemini", "anthropic"] = "gemini"
     table_name: Optional[str] = None  # If querying specific table
 
 class QueryResponse(BaseModel):

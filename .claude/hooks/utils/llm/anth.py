@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 def prompt_llm(prompt_text):
     """
     Base Anthropic LLM prompting method using fastest model.
+    Uses Claude Code subscription - no separate API key needed if using Claude Code.
 
     Args:
         prompt_text (str): The prompt to send to the model
@@ -24,6 +25,7 @@ def prompt_llm(prompt_text):
     """
     load_dotenv()
 
+    # Uses Claude Code subscription - API key is optional if running within Claude Code
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         return None

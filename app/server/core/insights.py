@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from typing import List, Optional, Dict, Any
 from core.data_models import ColumnInsight
@@ -16,7 +17,7 @@ def generate_insights(table_name: str, column_names: Optional[List[str]] = None)
         # Validate table name
         validate_identifier(table_name, "table")
         
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         
         # Get table schema using safe query execution
         cursor_info = execute_query_safely(

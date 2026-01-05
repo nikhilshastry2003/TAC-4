@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import re
 from typing import Dict, Any, List
@@ -17,7 +18,7 @@ def execute_sql_safely(sql_query: str) -> Dict[str, Any]:
         validate_sql_query(sql_query)
         
         # Connect to database
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         conn.row_factory = sqlite3.Row  # Enable column access by name
         
         # Execute query safely
@@ -65,7 +66,7 @@ def get_database_schema() -> Dict[str, Any]:
     Get complete database schema information
     """
     try:
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         cursor = conn.cursor()
         
         # Get all tables safely

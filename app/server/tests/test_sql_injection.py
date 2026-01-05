@@ -327,8 +327,12 @@ class TestEndToEndSQLInjection:
 
 def test_integration_upload_malicious_filename(test_db):
     """Test that malicious filenames are handled safely during upload"""
+    import os
     from core.file_processor import convert_csv_to_sqlite
-    
+
+    # Ensure db directory exists for the test
+    os.makedirs("db", exist_ok=True)
+
     # Create a simple CSV content
     csv_content = b"name,age\nAlice,30\nBob,25"
     

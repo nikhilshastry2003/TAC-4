@@ -1,4 +1,5 @@
 import json
+import os
 import pandas as pd
 import sqlite3
 import io
@@ -54,7 +55,7 @@ def convert_csv_to_sqlite(csv_content: bytes, table_name: str) -> Dict[str, Any]
         df.columns = [col.lower().replace(' ', '_').replace('-', '_') for col in df.columns]
         
         # Connect to SQLite database
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         
         # Write DataFrame to SQLite
         df.to_sql(table_name, conn, if_exists='replace', index=False)
@@ -126,7 +127,7 @@ def convert_json_to_sqlite(json_content: bytes, table_name: str) -> Dict[str, An
         df.columns = [col.lower().replace(' ', '_').replace('-', '_') for col in df.columns]
         
         # Connect to SQLite database
-        conn = sqlite3.connect("db/database.db")
+        conn = sqlite3.connect(os.path.join("db", "database.db"))
         
         # Write DataFrame to SQLite
         df.to_sql(table_name, conn, if_exists='replace', index=False)
